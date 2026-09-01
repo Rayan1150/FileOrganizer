@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>File Organizer</title>
+<link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}" />
+</head>
+<body>
+  <div class="page">
+    <header class="hero">
+      <h1>File Organizer</h1>
+      <p>Clean up a folder in seconds.</p>
+    </header>
+
+    {% if error %}
+      <div class="alert">{{ error }}</div>
+    {% endif %}
+
+    {% if undo_result %}
+      <div class="card">
+        <h2>Undo complete</h2>
+        <p>{{ undo_result.succeeded|length }} file(s) moved back to their original location.</p>
+        {% if undo_result.failed %}
+          <p class="warning">{{ undo_result.failed|length }} file(s) could not be moved back:</p>
+          <ul>
+            {% for outcome in undo_result.failed %}
+              <li>{{ outcome.filename }} &mdash; {{ outcome.error }}</li>
+            {% endfor %}
+          </ul>
+        {% endif %}
+        <form method="post" action="{{ url_for('reset') }}">
+          <button type="submit" class="btn">Organize Another Folder</button>
+        </form>
+      </div>
+
+    {% elif organize_result %}
+      <div class="card">
+        <h2>Done!</h2>
+        <p class="big-number">{{ organize_result.succeeded|length }} file(s) organized.</p>
+
+        {% if organize_result.failed %}
+          <p class="warning">{{ organize_result.failed|length }} file(s) could not be moved:</p>
+          <ul>
+            {% for outcome in organize_result.failed %}
+              <li>{{ outcome.filename }} &mdash; {{ outcome.error }}</li>
+            {% endfor %}
+          </ul>
+        {% endif %}
+
+        <details>
+          <summary>Show details</summary>
+          <table>
+            <thead><tr><th>File</th><th>Category</th><th>Result</th></tr></thead>
+            <tbody>
+              {% for outcome in organize_result.outcomes %}
+                <tr>
+                  <td>{{ outcome.filename }}</td>
+                  <td>{{ outcome.category }}</td>
+                  <td>{{ "✅ moved as " + outcome.dest_filename if outcome.success else "⚠️ failed: " + outcome.error }}</td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </details>
+
+        <div class="button-row">
+          <form method="post" action="{{ url_for('do_undo') }}">
+            <button type="submit" class="btn btn-secondary">Undo Last Organization</button>
+          </form>
+          <form method="post" action="{{ url_for('reset') }}">
+            <button type="submit" class="btn">Organize Another Folder</button>
+          </form>
+        </div>
+      </div>
+
+    {% elif scan_result %}
+      <div class="card">
+        <h2>{{ scan_result.total_files }} file{{ "s" if scan_result.total_files != 1 else "" }} found</h2>
+        <p class="muted">in <code>{{ scan_result.folder }}</code></p>
+
+        {% if scan_result.total_files == 0 %}
+          <p>No files to organize here &mdash; this folder is already tidy (or empty).</p>
+          <form method="post" action="{{ url_for('reset') }}">
+            <button type="submit" class="btn">Choose Another Folder</button>
+          </form>
+        {% else %}
+          <h3>Proposed organization</h3>
+          <table class="summary-table">
+            <thead><tr><th>Category</th><th>Files</th></tr></thead>
+            <tbody>
+              {% for category, count in scan_result.counts_by_category().items() %}
+                <tr><td>{{ category }}</td><td>{{ count }}</td></tr>
+              {% endfor %}
+            </tbody>
+          </table>
+
+          <details open>
+            <summary>View changes</summary>
+            <table>
+              <thead><tr><th>File</th><th>Destination</th></tr></thead>
+              <tbody>
+                {% for move in scan_result.moves %}
+                  <tr>
+                    <td>{{ move.filename }}</td>
+                    <td>{{ move.category }}/{{ move.dest_filename }}{{ " (renamed to avoid a naming conflict)" if move.dest_filename != move.filename else "" }}</td>
+                  </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </details>
+
+          {% if scan_result.skipped %}
+            <details>
+              <summary>{{ scan_result.skipped|length }} item(s) skipped</summary>
+              <ul>
+                {% for name, reason in scan_result.skipped %}
+                  <li>{{ name }} &mdash; {{ reason }}</li>
+                {% endfor %}
+              </ul>
+            </details>
+          {% endif %}
+
+          <div class="button-row">
+            <form method="post" action="{{ url_for('reset') }}">
+              <button type="submit" class="btn btn-secondary">Cancel</button>
+            </form>
+            <form method="post" action="{{ url_for('do_organize') }}">
+              <button type="submit" class="btn btn-primary">Organize Files</button>
+            </form>
+          </div>
+        {% endif %}
+      </div>
+
+    {% else %}
+      <div class="card">
+        <form method="post" action="{{ url_for('scan') }}" class="scan-form">
+          <label for="folder">Folder to organize</label>
+          <input
+            id="folder" name="folder" type="text" autocomplete="off"
+            placeholder="/home/you/Downloads"
+            required
+          />
+          <p class="form-hint">
+            Paste the full path to a folder. Only files directly inside it are
+            organized &mdash; subfolders are left untouched.
+          </p>
+          <button type="submit" class="btn btn-primary">Scan</button>
+        </form>
+      </div>
+
+      <div class="card categories-card">
+        <h3>Default categories</h3>
+        <p class="muted">Anything not listed below goes into "Other".</p>
+        <ul class="category-pills">
+          {% for name in category_names %}
+            <li>{{ name }}</li>
+          {% endfor %}
+        </ul>
+      </div>
+    {% endif %}
+
+    <footer class="footer">
+      <p>Runs entirely on your machine. Nothing is uploaded anywhere. Files are moved, never deleted.</p>
+    </footer>
+  </div>
+</body>
+</html>
