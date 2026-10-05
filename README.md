@@ -33,7 +33,8 @@ accident.
   disappeared), the rest of the folder is still organized, and you're told
   what failed.
 - "Undo Last Organization" button to move everything back to where it was.
-- Runs entirely on your own machine — nothing is uploaded anywhere.
+- Runs entirely on your own machine — nothing is uploaded anywhere, and the
+  server only listens on `127.0.0.1` (your own computer), never your network.
 
 ## Built with
 
@@ -64,13 +65,24 @@ path, and click Scan.
 python -m unittest discover -s tests -t . -v
 ```
 
-This runs 42 tests covering categorization (common extensions, unknown
+This runs 60 tests covering categorization (common extensions, unknown
 extensions, uppercase extensions, multi-dot filenames), the scanning and
 safe-renaming logic, moving files (including collision handling, files that
 disappear mid-run, and confirming nothing is ever deleted), the undo
-feature, and every web route (including invalid/empty folders and the
-full scan → organize → undo workflow). All tests run against temporary
-directories created on the fly — never against a real folder on disk.
+feature, and every web route (including invalid/empty folders, a double
+click on "Organize", and the full scan → organize → undo workflow). All
+tests run against temporary directories created on the fly — never against
+a real folder on disk.
+
+A couple of tests (a real symlink, and a filename with an invalid byte
+sequence) exercise conditions that not every OS/account can actually create
+on disk — e.g. Windows needs Developer Mode or Administrator rights to
+create a symlink, and can't represent an invalid-Unicode filename at all.
+Where that's the case, those specific tests skip themselves with a clear
+reason instead of failing, while a second, always-run test checks the same
+underlying safety logic directly without touching the file system. A skip
+is not a failure; on a typical Windows machine without Developer Mode,
+expect up to 2 of the 60 tests to skip for this reason and the rest to pass.
 
 ## Safety
 
@@ -89,6 +101,15 @@ This is the part I was most careful about:
 - **One failure doesn't stop the rest.** If a single file can't be moved
   (permissions, or it was deleted by something else in the meantime), that
   one file is reported as failed and every other file is still organized.
+- **Collisions are checked case-insensitively.** `Report.PDF` and
+  `report.pdf` are treated as the same name (as Windows and macOS do),
+  so one can never quietly replace the other.
+- **A couple of folders are off-limits.** File Organizer refuses to
+  organize its own project folder or an operating-system folder, so it
+  can't be pointed at itself or somewhere that could break your system.
+- **Undo double-checks before restoring a file.** If a file was changed
+  after it was organized, Undo leaves it where it is instead of moving
+  a now-different file back to its old name.
 
 ## Known limitations
 
@@ -96,8 +117,6 @@ This is the part I was most careful about:
   as long as the app keeps running (it's in-memory, not saved to disk) —
   this was a deliberate simplicity trade-off (see requirement to not
   complicate the project just to add Undo).
-- Undo does not remove the category folders it created if they're now
-  empty — it just moves the files back.
 - This is a single-user, local tool: it's meant for one person running it
   on their own machine, not multiple people using it at once.
 

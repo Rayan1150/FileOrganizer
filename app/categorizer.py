@@ -5,6 +5,8 @@ files, no external data. To add or change a category, edit CATEGORIES below.
 """
 from __future__ import annotations
 
+import os
+
 CATEGORIES: dict[str, list[str]] = {
     "Documents": [
         ".pdf", ".doc", ".docx", ".txt", ".rtf",
@@ -20,7 +22,7 @@ CATEGORIES: dict[str, list[str]] = {
         ".mp3", ".wav", ".flac", ".m4a", ".ogg", ".aac",
     ],
     "Archives": [
-        ".zip", ".rar", ".7z", ".tar", ".gz", ".bz2",
+        ".zip", ".rar", ".7z", ".tar", ".gz", ".bz2", ".xz", ".tgz",
     ],
     "Applications": [
         ".exe", ".msi", ".dmg", ".pkg", ".apk", ".deb", ".rpm",
@@ -48,7 +50,6 @@ def category_for_filename(filename: str) -> str:
     """
     # os.path.splitext handles multi-dot filenames correctly by design:
     # it splits on the *last* dot, so "archive.tar.gz" -> ("archive.tar", ".gz").
-    import os
     _, ext = os.path.splitext(filename)
     return _EXTENSION_TO_CATEGORY.get(ext.lower(), FALLBACK_CATEGORY)
 

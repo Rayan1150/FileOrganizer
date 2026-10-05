@@ -88,9 +88,45 @@ class TestWebRoutes(unittest.TestCase):
         self.assertIn(b"Undo complete", resp.data)
         self.assertTrue(os.path.isfile(os.path.join(self.folder, "report.pdf")))
 
+    def test_failed_scan_does_not_erase_pending_undo(self):
+        # A typo'd/invalid folder afterwards must not cost the user their
+        # ability to undo a just-completed organize.
+        _touch(os.path.join(self.folder, "a.pdf"))
+        self.client.post("/scan", data={"folder": self.folder}, follow_redirects=True)
+        self.client.post("/organize", follow_redirects=True)
+
+        resp = self.client.post(
+            "/scan", data={"folder": "/definitely/not/a/real/path/xyz"}, follow_redirects=True
+        )
+        self.assertIn(b"does not exist", resp.data)
+        self.assertIn(b"Undo Last Organization", resp.data)
+
+        undo_resp = self.client.post("/undo", follow_redirects=True)
+        self.assertIn(b"Undo complete", undo_resp.data)
+        self.assertTrue(os.path.isfile(os.path.join(self.folder, "a.pdf")))
+
     def test_undo_without_prior_organize_shows_error(self):
         resp = self.client.post("/undo", follow_redirects=True)
         self.assertIn(b"nothing to undo", resp.data)
+
+    def test_double_submit_of_organize_does_not_race(self):
+        # Simulates an accidental double-click: the second /organize call
+        # should find nothing left to organize, not race the first call
+        # over the same files.
+        _touch(os.path.join(self.folder, "a.pdf"))
+        self.client.post("/scan", data={"folder": self.folder}, follow_redirects=True)
+
+        first = self.client.post("/organize", follow_redirects=True)
+        second = self.client.post("/organize", follow_redirects=True)
+
+        self.assertIn(b"organized", first.data)
+        self.assertIn(b"No scan to organize", second.data)
+        self.assertTrue(os.path.isfile(os.path.join(self.folder, "Documents", "a.pdf")))
+
+    def test_responses_include_basic_security_headers(self):
+        resp = self.client.get("/")
+        self.assertEqual(resp.headers.get("X-Content-Type-Options"), "nosniff")
+        self.assertEqual(resp.headers.get("X-Frame-Options"), "DENY")
 
     def test_reset_clears_state(self):
         _touch(os.path.join(self.folder, "report.pdf"))
